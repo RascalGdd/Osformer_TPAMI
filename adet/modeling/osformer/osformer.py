@@ -846,7 +846,7 @@ class CISTransformerHead(nn.Module):
             # matrix multiplication (BxNxHW)*(BxHWxC)-->(B,N,C)
             query_feature = torch.bmm(kernel_memory_prob, memory.view(bs, C, -1).permute(0, 2, 1))
             srcs_decoder.append(query_feature)
-            pos_queries.append(self.position_encoding(query_feature))
+            # pos_queries.append(self.position_encoding(query_feature))
 
             # 随机初始化srcs_decoder
             # query_feature = self.query_feature.weight
@@ -854,9 +854,9 @@ class CISTransformerHead(nn.Module):
             # srcs_decoder.append(srcs_feature)
 
             # 随机初始化position decoder
-            # query_embed = self.query_embed.weight
-            # pos_query = query_embed.unsqueeze(0).expand(bs, -1, -1)  # (bs, num_queries, hidden_dim)
-            # pos_queries.append(pos_query)
+            query_embed = self.query_embed.weight
+            pos_query = query_embed.unsqueeze(0).expand(bs, -1, -1)  # (bs, num_queries, hidden_dim)
+            pos_queries.append(pos_query)
 
             # 与srcs对齐的position decoder
             # pos_query = torch.bmm(kernel_memory_prob, pos_encoder.view(bs, C_pos, -1).permute(0, 2, 1))
