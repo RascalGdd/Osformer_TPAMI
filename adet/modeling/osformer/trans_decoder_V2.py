@@ -73,7 +73,14 @@ class CISTransformerDecoder(nn.Module):
             lvl_pos_memory_flatten.append(lvl_pos_memory)
             tgt_flatten.append(tgt)
             memory_flatten.append(memory)
+
+            print("shape of pos_embed is", pos_embed.shape)
+            print("shape of tgt is", tgt.shape)
+
             reference_point = self.reference_points(pos_embed).sigmoid()
+            print("shape of reference_point is", reference_point.shape)
+            asd
+
             reference_points.append(reference_point)
         point_flatten = torch.cat(reference_points, 1)
         tgt_flatten = torch.cat(tgt_flatten, 1)
