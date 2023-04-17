@@ -260,7 +260,6 @@ class SparseInstCriterion(nn.Module):
 
         outputs_without_aux = {k: v for k,
                                v in outputs.items() if k != 'aux_outputs'}
-        print(outputs_without_aux)
 
         # Retrieve the matching between the outputs of the last layer and the targets
         indices = self.matcher(outputs_without_aux, targets, input_shape)
@@ -274,6 +273,8 @@ class SparseInstCriterion(nn.Module):
             num_instances / get_world_size(), min=1).item()
         # Compute all the requested losses
         losses = {}
+        print(self.losses)
+        asd
         for loss in self.losses:
             losses.update(self.get_loss(loss, outputs, targets, indices,
                                         num_instances, sem_targets, sem_pred, input_shape=input_shape))
