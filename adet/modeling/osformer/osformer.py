@@ -147,7 +147,7 @@ class OSFormer(nn.Module):
         if len(self.instance_strides) > 3:
             ins_features = self.split_feats(ins_features)
 
-        cate_pred, kernel_pred, score_pred, mask_extra_feat = self.cate_head(ins_features)
+        cate_pred, kernel_pred, score_pred, mask_extra_feat, outputs_coord = self.cate_head(ins_features)
         features.update({f_name.replace('res', 'trans'): feat
                          for f_name, feat in zip(self.instance_in_features, mask_extra_feat)})
         if features.get('trans2') is not None:
@@ -170,7 +170,9 @@ class OSFormer(nn.Module):
             "pred_logits": cate_pred,
             "pred_masks": pred_masks,
             "pred_scores": score_pred,
+            'pred_boxes': outputs_coord
         }
+        asd
 
         if self.training:
             """
@@ -728,6 +730,7 @@ class CISTransformerHead(nn.Module):
         self.num_levels = len(self.instance_in_features)
         self.hidden_dim = cfg.MODEL.OSFormer.HIDDEN_DIM
         self.no_fpn = cfg.MODEL.OSFormer.NOFPN
+        self.bbox_embed = MLP(self.hidden_dim, self.hidden_dim, 4, 3)
 
         if self.no_fpn:
             in_channels = [256 for _ in input_shape]
@@ -866,12 +869,24 @@ class CISTransformerHead(nn.Module):
             mask = torch.zeros((bs, w, h), dtype=torch.bool, device=memory.device)
             valid_masks.append(mask)
 
-        hss, init_reference = self.trans_decoder(srcs_decoder, pos_queries, valid_masks, trans_memory, pos_encoders)
-        print("hss_shape", hss.shape)
-        print("init_reference", init_reference.shape)
-        asd
+        hss, init_references = self.trans_decoder(srcs_decoder, pos_queries, valid_masks, trans_memory, pos_encoders)
+        inter_references = init_references
+        # hss = torch.permute(hss, [1, 0, 2])        # now: [N, bs, 2]
 
-        # hss = torch.cat(srcs_decoder, dim=1)
+        # print("hss_shape", hss.shape)
+        # print("init_reference", init_reference.shape)
+        # asd
+
+
+
+        reference = inverse_sigmoid(init_references)
+        tmp = self.bbox_embed(hss)
+        if reference.shape[-1] == 4:
+            tmp += reference
+        else:
+            assert reference.shape[-1] == 2
+            tmp[..., :2] += reference
+        outputs_coord = tmp.sigmoid()
 
         cate_pred= self.cate_pred(hss)   # (bs, N, channel)
         kernel_pred = self.kernel_pred(hss)
@@ -887,7 +902,7 @@ class CISTransformerHead(nn.Module):
         #     kernel_pred_single = self.kernel_pred(hs).permute(0, 3, 1, 2)
         #     kernel_pred.append(kernel_pred_single)
 
-        return cate_pred, kernel_pred, score_pred, trans_memory
+        return cate_pred, kernel_pred, score_pred, trans_memory, outputs_coord
 
 
 class C2FMaskHead(nn.Module):
@@ -1023,3 +1038,23 @@ class ReverseEdgeSupervision(nn.Module):
 def rescoring_mask(scores, mask_pred, masks):
     mask_pred_ = mask_pred.float()
     return scores * ((masks * mask_pred_).sum([1, 2]) / (mask_pred_.sum([1, 2]) + 1e-6))
+
+def inverse_sigmoid(x, eps=1e-5):
+    x = x.clamp(min=0, max=1)
+    x1 = x.clamp(min=eps)
+    x2 = (1 - x).clamp(min=eps)
+    return torch.log(x1/x2)
+
+class MLP(nn.Module):
+    """ Very simple multi-layer perceptron (also called FFN)"""
+
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
+        super().__init__()
+        self.num_layers = num_layers
+        h = [hidden_dim] * (num_layers - 1)
+        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
+
+    def forward(self, x):
+        for i, layer in enumerate(self.layers):
+            x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
+        return x
