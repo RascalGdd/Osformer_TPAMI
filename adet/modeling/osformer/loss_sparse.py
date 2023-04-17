@@ -165,7 +165,7 @@ class SparseInstCriterion(nn.Module):
         src_boxes = outputs['pred_boxes'][idx]
 
         for t in targets:
-            t['boxes'] = masks_to_boxes(t["masks"])
+            t['boxes'] = masks_to_boxes(t["masks"].tensor)
 
         target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
@@ -385,7 +385,6 @@ class SparseInstMatcher(nn.Module):
             B, N, H, W = outputs["pred_masks"].shape
             pred_masks = outputs['pred_masks']
             pred_logits = outputs['pred_logits'].sigmoid()
-            print(targets[0]['masks'].tensor.shape)
 
             tgt_ids = torch.cat([v["labels"] for v in targets])
 
