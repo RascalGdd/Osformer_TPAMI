@@ -866,8 +866,12 @@ class CISTransformerHead(nn.Module):
             mask = torch.zeros((bs, w, h), dtype=torch.bool, device=memory.device)
             valid_masks.append(mask)
 
-        # hss = self.trans_decoder(srcs_decoder, pos_queries, valid_masks, trans_memory, pos_encoders)
-        hss = torch.cat(srcs_decoder, dim=1)
+        hss, init_reference = self.trans_decoder(srcs_decoder, pos_queries, valid_masks, trans_memory, pos_encoders)
+        print("hss_shape", hss.shape)
+        print("init_reference", init_reference.shape)
+        asd
+
+        # hss = torch.cat(srcs_decoder, dim=1)
 
         cate_pred= self.cate_pred(hss)   # (bs, N, channel)
         kernel_pred = self.kernel_pred(hss)
