@@ -8,6 +8,7 @@ from scipy.optimize import linear_sum_assignment
 from fvcore.nn import sigmoid_focal_loss_jit
 from kornia.morphology import erosion
 from detectron2.utils.registry import Registry
+import box_ops
 
 from .utils import nested_masks_from_list, is_dist_avail_and_initialized, get_world_size
 
@@ -129,6 +130,28 @@ class SparseInstCriterion(nn.Module):
         losses = {'loss_ce': class_loss}
         return losses
 
+
+    def loss_boxes(self, outputs, targets, indices, num_boxes):
+        """Compute the losses related to the bounding boxes, the L1 regression loss and the GIoU loss
+           targets dicts must contain the key "boxes" containing a tensor of dim [nb_target_boxes, 4]
+           The target boxes are expected in format (center_x, center_y, h, w), normalized by the image size.
+        """
+        assert 'pred_boxes' in outputs
+        idx = self._get_src_permutation_idx(indices)
+        src_boxes = outputs['pred_boxes'][idx]
+        target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
+
+        loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
+
+        losses = {}
+        losses['loss_bbox'] = loss_bbox.sum() / num_boxes
+
+        loss_giou = 1 - torch.diag(box_ops.generalized_box_iou(
+            box_ops.box_cxcywh_to_xyxy(src_boxes),
+            box_ops.box_cxcywh_to_xyxy(target_boxes)))
+        losses['loss_giou'] = loss_giou.sum() / num_boxes
+        return losses
+
     def loss_masks_with_iou_objectness(self, outputs, targets, indices, num_instances, sem_targets=None, sem_pred=None, input_shape=None):
         src_idx = self._get_src_permutation_idx(indices)
         tgt_idx = self._get_tgt_permutation_idx(indices)
@@ -218,12 +241,14 @@ class SparseInstCriterion(nn.Module):
             loss_map = {
                 "labels": self.loss_labels,
                 "masks": self.loss_masks_with_iou_objectness,
-                "loss_sem": self.sem_loss
+                "loss_sem": self.sem_loss,
+                'boxes': self.loss_boxes,
             }
         else:
             loss_map = {
                 "labels": self.loss_labels,
                 "masks": self.loss_masks_with_iou_objectness,
+                'boxes': self.loss_boxes,
             }
 
         if loss == "loss_objectness":

@@ -172,7 +172,6 @@ class OSFormer(nn.Module):
             "pred_scores": score_pred,
             'pred_boxes': outputs_coord
         }
-        asd
 
         if self.training:
             """
