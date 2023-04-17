@@ -273,8 +273,6 @@ class SparseInstCriterion(nn.Module):
             num_instances / get_world_size(), min=1).item()
         # Compute all the requested losses
         losses = {}
-        print(self.losses)
-        asd
         for loss in self.losses:
             losses.update(self.get_loss(loss, outputs, targets, indices,
                                         num_instances, sem_targets, sem_pred, input_shape=input_shape))
@@ -282,6 +280,7 @@ class SparseInstCriterion(nn.Module):
         for k in losses.keys():
             if k in self.weight_dict:
                 losses[k] *= self.weight_dict[k]
+        print(losses)
 
         return losses
 
@@ -354,6 +353,7 @@ class SparseInstMatcher(nn.Module):
             B, N, H, W = outputs["pred_masks"].shape
             pred_masks = outputs['pred_masks']
             pred_logits = outputs['pred_logits'].sigmoid()
+            print(targets)
 
             tgt_ids = torch.cat([v["labels"] for v in targets])
 

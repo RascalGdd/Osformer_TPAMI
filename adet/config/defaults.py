@@ -148,7 +148,7 @@ _C.SOLVER.OPTIMIZER = "SGD"
 
 # [Loss]
 _C.MODEL.OSFormer.LOSS.NAME = "SparseInstCriterion"
-_C.MODEL.OSFormer.LOSS.ITEMS = ("labels", "masks", "loss_sem")
+_C.MODEL.OSFormer.LOSS.ITEMS = ("labels", "masks", "loss_sem", "boxes")
 # loss weight
 _C.MODEL.OSFormer.LOSS.CLASS_WEIGHT = 2.0
 _C.MODEL.OSFormer.LOSS.MASK_PIXEL_WEIGHT = 5.0
