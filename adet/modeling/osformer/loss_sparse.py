@@ -356,7 +356,7 @@ class SparseInstMatcher(nn.Module):
             B, N, H, W = outputs["pred_masks"].shape
             pred_masks = outputs['pred_masks']
             pred_logits = outputs['pred_logits'].sigmoid()
-            print(targets)
+            print(targets['masks'].tensor.shape)
 
             tgt_ids = torch.cat([v["labels"] for v in targets])
 
