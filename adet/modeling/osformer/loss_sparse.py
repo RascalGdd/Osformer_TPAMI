@@ -165,7 +165,7 @@ class SparseInstCriterion(nn.Module):
         src_boxes = outputs['pred_boxes'][idx]
 
         for t in targets:
-            t['boxes'] = masks_to_boxes(t["masks"].tensor)
+            t['boxes'] = masks_to_boxes(t["masks"].tensor).cuda()
 
         target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
