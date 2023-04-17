@@ -254,7 +254,10 @@ class SparseInstCriterion(nn.Module):
             # NOTE: loss_objectness will be calculated in `loss_masks_with_iou_objectness`
             return {}
         assert loss in loss_map
-        return loss_map[loss](outputs, targets, indices, num_instances, sem_targets, sem_pred, **kwargs)
+        if loss == "boxes":
+            return self.loss_boxes(outputs, targets, indices, num_instances)
+        else:
+            return loss_map[loss](outputs, targets, indices, num_instances, sem_targets, sem_pred, **kwargs)
 
     def forward(self, outputs, targets, input_shape, sem_targets=None, sem_pred=None):
 
