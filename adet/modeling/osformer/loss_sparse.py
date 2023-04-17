@@ -8,8 +8,7 @@ from scipy.optimize import linear_sum_assignment
 from fvcore.nn import sigmoid_focal_loss_jit
 from kornia.morphology import erosion
 from detectron2.utils.registry import Registry
-import box_ops
-
+from .box_ops import *
 from .utils import nested_masks_from_list, is_dist_avail_and_initialized, get_world_size
 
 SPARSE_INST_MATCHER_REGISTRY = Registry("SPARSE_INST_MATCHER")
@@ -146,9 +145,9 @@ class SparseInstCriterion(nn.Module):
         losses = {}
         losses['loss_bbox'] = loss_bbox.sum() / num_boxes
 
-        loss_giou = 1 - torch.diag(box_ops.generalized_box_iou(
-            box_ops.box_cxcywh_to_xyxy(src_boxes),
-            box_ops.box_cxcywh_to_xyxy(target_boxes)))
+        loss_giou = 1 - torch.diag(generalized_box_iou(
+            box_cxcywh_to_xyxy(src_boxes),
+            box_cxcywh_to_xyxy(target_boxes)))
         losses['loss_giou'] = loss_giou.sum() / num_boxes
         return losses
 
