@@ -17,6 +17,7 @@ SPARSE_INST_CRITERION_REGISTRY = Registry("SPARSE_INST_CRITERION")
 SPARSE_INST_CRITERION_REGISTRY.__doc__ = "Criterion for SparseInst"
 
 def masks_to_boxes(masks):
+    masks = masks.to("cpu")
     """Compute the bounding boxes around the provided masks
 
     The masks should be in format [N, H, W] where N is the number of masks, (H, W) are the spatial dimensions.
