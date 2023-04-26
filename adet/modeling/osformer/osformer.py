@@ -147,18 +147,18 @@ class OSFormer(nn.Module):
         if len(self.instance_strides) > 3:
             ins_features = self.split_feats(ins_features)
 
-        cate_pred, kernel_pred, score_pred, mask_extra_feat, outputs_coord = self.cate_head(ins_features)
-        features.update({f_name.replace('res', 'trans'): feat
-                         for f_name, feat in zip(self.instance_in_features, mask_extra_feat)})
-        if features.get('trans2') is not None:
-            features['trans2'] = F.interpolate(features['trans2'], scale_factor=2)
-
-        mask_in_feats = [features[f] for f in self.mask_in_features]
-        mask_pred = self.mask_head(mask_in_feats)
-
-        sem_pred = None
-        if self.sem_loss_on:
-            mask_pred, sem_pred = mask_pred
+        cate_pred, kernel_pred, score_pred, mask_extra_feat, outputs_coord, mask_pred, sem_pred = self.cate_head(ins_features, features, self.mask_head)
+        # features.update({f_name.replace('res', 'trans'): feat
+        #                  for f_name, feat in zip(self.instance_in_features, mask_extra_feat)})
+        # if features.get('trans2') is not None:
+        #     features['trans2'] = F.interpolate(features['trans2'], scale_factor=2)
+        #
+        # mask_in_feats = [features[f] for f in self.mask_in_features]
+        # mask_pred = self.mask_head(mask_in_feats)
+        #
+        # sem_pred = None
+        # if self.sem_loss_on:
+        #     mask_pred, sem_pred = mask_pred
 
         N = kernel_pred.shape[1]
         B, C, H, W = mask_pred.shape
@@ -730,6 +730,7 @@ class CISTransformerHead(nn.Module):
         self.hidden_dim = cfg.MODEL.OSFormer.HIDDEN_DIM
         self.no_fpn = cfg.MODEL.OSFormer.NOFPN
         self.bbox_embed = MLP(self.hidden_dim, self.hidden_dim, 4, 3)
+        self.mask_in_features = cfg.MODEL.OSFormer.MASK_IN_FEATURES
 
         if self.no_fpn:
             in_channels = [256 for _ in input_shape]
@@ -801,7 +802,18 @@ class CISTransformerHead(nn.Module):
 
         return topk_feats, topk_pos
 
-    def forward(self, features):
+    def forward_prediction_heads(self, output, mask_features, pred_mask=True):
+        decoder_output = self.decoder_norm(output)
+        decoder_output = decoder_output.transpose(0, 1)
+        outputs_class = self.class_embed(decoder_output)
+        outputs_mask = None
+        if pred_mask:
+            mask_embed = self.mask_embed(decoder_output)
+            outputs_mask = torch.einsum("bqc,bchw->bqhw", mask_embed, mask_features)
+
+        return outputs_class, outputs_mask
+
+    def forward(self, features, old_features, mask_head):
 
         pos_encoders = []
         sizes_encoder = []
@@ -819,7 +831,7 @@ class CISTransformerHead(nn.Module):
         # sizes_decoder = []
         srcs_decoder = []
         valid_masks = []
-
+        mask_flatten = []
         pos_grid = []
         for memory, (w, h), seg_num_grid, pos_encoder in zip(memorys.split(split_list, 1),
                                                              sizes_encoder, self.num_grids, pos_encoders):
@@ -836,18 +848,18 @@ class CISTransformerHead(nn.Module):
             # srcs_decoder.append(feat)
 
             # 这段临时注释
-            kernel_memory = self.reduce_channel(memory)
-            kernel_memory_prob = kernel_memory.sigmoid()
-            num_channel = kernel_memory_prob.shape[1]
-            kernel_memory_prob = kernel_memory_prob.view(bs, num_channel, -1)
+            # kernel_memory = self.reduce_channel(memory)
+            # kernel_memory_prob = kernel_memory.sigmoid()
+            # num_channel = kernel_memory_prob.shape[1]
+            # kernel_memory_prob = kernel_memory_prob.view(bs, num_channel, -1)
             #
             # normalizer = kernel_memory_prob.sum(-1).clamp(min=1e-6)
             # kernel_memory_prob = kernel_memory_prob / normalizer[:, :, None]
 
             # 这段临时注释
             # matrix multiplication (BxNxHW)*(BxHWxC)-->(B,N,C)
-            query_feature = torch.bmm(kernel_memory_prob, memory.view(bs, C, -1).permute(0, 2, 1))
-            srcs_decoder.append(query_feature)
+            # query_feature = torch.bmm(kernel_memory_prob, memory.view(bs, C, -1).permute(0, 2, 1))
+            # srcs_decoder.append(query_feature)
             # pos_queries.append(self.position_encoding(query_feature))
 
             # 随机初始化srcs_decoder
@@ -856,9 +868,9 @@ class CISTransformerHead(nn.Module):
             # srcs_decoder.append(srcs_feature)
 
             # 随机初始化position decoder
-            query_embed = self.query_embed.weight
-            pos_query = query_embed.unsqueeze(0).expand(bs, -1, -1)  # (bs, num_queries, hidden_dim)
-            pos_queries.append(pos_query)
+            # query_embed = self.query_embed.weight
+            # pos_query = query_embed.unsqueeze(0).expand(bs, -1, -1)  # (bs, num_queries, hidden_dim)
+            # pos_queries.append(pos_query)
 
             # 与srcs对齐的position decoder
             # pos_query = torch.bmm(kernel_memory_prob, pos_encoder.view(bs, C_pos, -1).permute(0, 2, 1))
@@ -866,9 +878,60 @@ class CISTransformerHead(nn.Module):
             # pos_queries.append(pos_query)
 
             mask = torch.zeros((bs, w, h), dtype=torch.bool, device=memory.device)
+            mask_flatten.append(mask.flatten(1))
             valid_masks.append(mask)
+            mask_flatten = torch.cat(mask_flatten, 1)
 
-        hss, init_references = self.trans_decoder(srcs_decoder, pos_queries, valid_masks, trans_memory, pos_encoders)
+
+        old_features.update({f_name.replace('res', 'trans'): feat
+                         for f_name, feat in zip(self.instance_in_features, trans_memory)})
+        if old_features.get('trans2') is not None:
+            old_features['trans2'] = F.interpolate(old_features['trans2'], scale_factor=2)
+
+        mask_in_feats = [old_features[f] for f in self.mask_in_features]
+        mask_pred = mask_head(mask_in_feats)
+        mask_pred, sem_pred = mask_pred
+
+
+        predictions_class = []
+        predictions_mask = []
+
+        output_memory, output_proposals = gen_encoder_output_proposals(memorys, mask_flatten, sizes_encoder)
+        output_memory = self.enc_output_norm(self.enc_output(output_memory))
+        enc_outputs_class_unselected = self.class_embed(output_memory)
+        enc_outputs_coord_unselected = self._bbox_embed(
+            output_memory) + output_proposals  # (bs, \sum{hw}, 4) unsigmoid
+        topk = self.num_queries
+        topk_proposals = torch.topk(enc_outputs_class_unselected.max(-1)[0], topk, dim=1)[1]
+        refpoint_embed_undetach = torch.gather(enc_outputs_coord_unselected, 1,
+                                               topk_proposals.unsqueeze(-1).repeat(1, 1, 4))  # unsigmoid
+        refpoint_embed = refpoint_embed_undetach.detach()
+
+        tgt_undetach = torch.gather(output_memory, 1,
+                              topk_proposals.unsqueeze(-1).repeat(1, 1, self.hidden_dim))  # unsigmoid
+
+        outputs_class, outputs_mask = self.forward_prediction_heads(tgt_undetach.transpose(0, 1), mask_pred)
+        tgt = tgt_undetach.detach()
+        interm_outputs=dict()
+        interm_outputs['pred_logits'] = outputs_class
+        interm_outputs['pred_boxes'] = refpoint_embed_undetach.sigmoid()
+        interm_outputs['pred_masks'] = outputs_mask
+
+        flaten_mask = outputs_mask.detach().flatten(0, 1)
+        h, w = outputs_mask.shape[-2:]
+        refpoint_embed = BitMasks(flaten_mask > 0).get_bounding_boxes().tensor.cuda()
+        refpoint_embed = box_xyxy_to_cxcywh(refpoint_embed) / torch.as_tensor([w, h, w, h],
+                                                                                      dtype=torch.float).cuda()
+        refpoint_embed = refpoint_embed.reshape(outputs_mask.shape[0], outputs_mask.shape[1], 4)
+        refpoint_embed = inverse_sigmoid(refpoint_embed)
+
+        outputs_class, outputs_mask = self.forward_prediction_heads(tgt.transpose(0, 1), mask_pred, self.training)
+        predictions_class.append(outputs_class)
+        predictions_mask.append(outputs_mask)
+
+
+
+        hss = self.trans_decoder(tgt.transpose(0, 1), pos_queries, valid_masks, trans_memory, pos_encoders)
         inter_references = init_references
         # hss = torch.permute(hss, [1, 0, 2])        # now: [N, bs, 2]
 
@@ -901,7 +964,7 @@ class CISTransformerHead(nn.Module):
         #     kernel_pred_single = self.kernel_pred(hs).permute(0, 3, 1, 2)
         #     kernel_pred.append(kernel_pred_single)
 
-        return cate_pred, kernel_pred, score_pred, trans_memory, outputs_coord
+        return cate_pred, kernel_pred, score_pred, trans_memory, outputs_coord, mask_pred, sem_pred
 
 
 class C2FMaskHead(nn.Module):
@@ -1057,3 +1120,49 @@ class MLP(nn.Module):
         for i, layer in enumerate(self.layers):
             x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
         return x
+
+def gen_encoder_output_proposals(memory, memory_padding_mask, spatial_shapes):
+    """
+    Input:
+        - memory: bs, \sum{hw}, d_model
+        - memory_padding_mask: bs, \sum{hw}
+        - spatial_shapes: nlevel, 2
+    Output:
+        - output_memory: bs, \sum{hw}, d_model
+        - output_proposals: bs, \sum{hw}, 4
+    """
+    N_, S_, C_ = memory.shape
+    base_scale = 4.0
+    proposals = []
+    _cur = 0
+    for lvl, (H_, W_) in enumerate(spatial_shapes):
+        mask_flatten_ = memory_padding_mask[:, _cur:(_cur + H_ * W_)].view(N_, H_, W_, 1)
+        valid_H = torch.sum(~mask_flatten_[:, :, 0, 0], 1)
+        valid_W = torch.sum(~mask_flatten_[:, 0, :, 0], 1)
+
+        grid_y, grid_x = torch.meshgrid(torch.linspace(0, H_ - 1, H_, dtype=torch.float32, device=memory.device),
+                                        torch.linspace(0, W_ - 1, W_, dtype=torch.float32, device=memory.device))
+        grid = torch.cat([grid_x.unsqueeze(-1), grid_y.unsqueeze(-1)], -1)
+
+        scale = torch.cat([valid_W.unsqueeze(-1), valid_H.unsqueeze(-1)], 1).view(N_, 1, 1, 2)
+        grid = (grid.unsqueeze(0).expand(N_, -1, -1, -1) + 0.5) / scale
+        wh = torch.ones_like(grid) * 0.05 * (2.0 ** lvl)
+        proposal = torch.cat((grid, wh), -1).view(N_, -1, 4)
+        proposals.append(proposal)
+        _cur += (H_ * W_)
+    output_proposals = torch.cat(proposals, 1)
+    output_proposals_valid = ((output_proposals > 0.01) & (output_proposals < 0.99)).all(-1, keepdim=True)
+    output_proposals = torch.log(output_proposals / (1 - output_proposals))
+    output_proposals = output_proposals.masked_fill(memory_padding_mask.unsqueeze(-1), float('inf'))
+    output_proposals = output_proposals.masked_fill(~output_proposals_valid, float('inf'))
+
+    output_memory = memory
+    output_memory = output_memory.masked_fill(memory_padding_mask.unsqueeze(-1), float(0))
+    output_memory = output_memory.masked_fill(~output_proposals_valid, float(0))
+    return output_memory, output_proposals
+
+def box_xyxy_to_cxcywh(x):
+    x0, y0, x1, y1 = x.unbind(-1)
+    b = [(x0 + x1) / 2, (y0 + y1) / 2,
+         (x1 - x0), (y1 - y0)]
+    return torch.stack(b, dim=-1)

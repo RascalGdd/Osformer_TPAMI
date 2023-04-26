@@ -5,7 +5,7 @@ from torch.nn.init import xavier_uniform_, constant_, normal_
 from adet.modeling.ops.modules.ms_deform_attn import MSDeformAttn
 from .trans_utils import _get_clones, get_reference_points, with_pos_embed
 from .feed_forward import get_ffn
-
+import torch.nn.functional as F
 
 class CISTransformerDecoder(nn.Module):
     def __init__(self, d_model=256, nhead=8,
@@ -21,7 +21,8 @@ class CISTransformerDecoder(nn.Module):
                                                 num_feature_levels, nhead, enc_n_points)
         self.decoder = TransformerDecoder(decoder_layer, num_encoder_layers)
         self.level_embed = nn.Parameter(torch.Tensor(num_feature_levels, d_model))
-        self.reference_points = nn.Linear(d_model, 2)
+        self.reference_points = nn.Linear(d_model, 4)
+        self.ref_point_head = MLP(query_dim // 2 * d_model, d_model, d_model, 2)
 
         self._reset_parameters()
 
@@ -45,7 +46,7 @@ class CISTransformerDecoder(nn.Module):
         valid_ratio = torch.stack([valid_ratio_w, valid_ratio_h], -1)
         return valid_ratio
 
-    def forward(self, tgts, pos_embeds, valid_masks, memorys=None, pos_memorys=None):
+    def forward(self, tgts, pos_embeds, valid_masks, memorys=None, pos_memorys=None, reference_points=None):
 
         # prepare input for decoder
         tgt_flatten = []
@@ -75,9 +76,9 @@ class CISTransformerDecoder(nn.Module):
             memory_flatten.append(memory)
             # print("shape of pos_embed is", pos_embed.shape)
             # print("shape of tgt is", tgt.shape)
-            reference_point = self.reference_points(pos_embed).sigmoid()
+            # reference_point = self.reference_points(pos_embed).sigmoid()
             # print("shape of reference_point is", reference_point.shape)
-            reference_points.append(reference_point)
+            # reference_points.append(reference_point)
         point_flatten = torch.cat(reference_points, 1)
         tgt_flatten = torch.cat(tgt_flatten, 1)
         memory_flatten = torch.cat(memory_flatten, 1)
@@ -94,7 +95,7 @@ class CISTransformerDecoder(nn.Module):
         memory = self.decoder(tgt_flatten, memory_flatten, spatial_shapes, spatial_shape_grids, level_start_index_grid,
                               level_start_index, lvl_pos_embed_flatten, lvl_pos_memory_flatten, point_flatten, valid_ratios)
 
-        return memory, point_flatten
+        return memory
 
 
 class TransformerDecoderLayer(nn.Module):
@@ -159,3 +160,17 @@ def build_transformer_decoder_v2(cfg):
         ffn_type=cfg.MODEL.OSFormer.FFN,
         num_feature_levels=len(cfg.MODEL.OSFormer.FEAT_INSTANCE_STRIDES),
         enc_n_points=cfg.MODEL.OSFormer.ENC_POINTS)
+
+class MLP(nn.Module):
+    """ Very simple multi-layer perceptron (also called FFN)"""
+
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
+        super().__init__()
+        self.num_layers = num_layers
+        h = [hidden_dim] * (num_layers - 1)
+        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
+
+    def forward(self, x):
+        for i, layer in enumerate(self.layers):
+            x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
+        return x

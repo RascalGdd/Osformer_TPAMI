@@ -313,7 +313,6 @@ class SparseInstCriterion(nn.Module):
         for k in losses.keys():
             if k in self.weight_dict:
                 losses[k] *= self.weight_dict[k]
-        print(losses)
 
         return losses
 
