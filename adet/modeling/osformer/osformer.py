@@ -753,6 +753,9 @@ class CISTransformerHead(nn.Module):
         self.kernel_pred = nn.Linear(self.instance_in_channels, self.num_kernels)
         self.score_pred = nn.Linear(self.instance_in_channels, 1)
 
+        self.class_embed = nn.Linear(self.hidden_dim, self.num_classes)
+        self._bbox_embed = _bbox_embed = MLP(self.hidden_dim, self.hidden_dim, 4, 3)
+
         # initialize the bias for focal loss
         prior_prob = cfg.MODEL.OSFormer.PRIOR_PROB
         bias_value = -math.log((1 - prior_prob) / prior_prob)
