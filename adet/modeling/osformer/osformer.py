@@ -755,6 +755,7 @@ class CISTransformerHead(nn.Module):
 
         self.class_embed = nn.Linear(self.hidden_dim, self.num_classes)
         self._bbox_embed = _bbox_embed = MLP(self.hidden_dim, self.hidden_dim, 4, 3)
+        self.decoder_norm = decoder_norm = nn.LayerNorm(self.hidden_dim)
 
         # initialize the bias for focal loss
         prior_prob = cfg.MODEL.OSFormer.PRIOR_PROB
