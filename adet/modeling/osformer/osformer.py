@@ -908,7 +908,7 @@ class CISTransformerHead(nn.Module):
         enc_outputs_class_unselected = self.class_embed(output_memory)
         enc_outputs_coord_unselected = self._bbox_embed(
             output_memory) + output_proposals  # (bs, \sum{hw}, 4) unsigmoid
-        topk = self.num_queries
+        topk = 80
         topk_proposals = torch.topk(enc_outputs_class_unselected.max(-1)[0], topk, dim=1)[1]
         refpoint_embed_undetach = torch.gather(enc_outputs_coord_unselected, 1,
                                                topk_proposals.unsqueeze(-1).repeat(1, 1, 4))  # unsigmoid
