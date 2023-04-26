@@ -771,6 +771,7 @@ class CISTransformerHead(nn.Module):
 
         self.query_embed = nn.Embedding(self.num_masks, self.instance_in_channels)
         self.query_feature = nn.Embedding(self.num_masks, self.instance_in_channels)
+        self.mask_embed = MLP(self.hidden_dim, self.hidden_dim, self.hidden_dim, 3)
 
         for modules in [self.reduce_channel]:
             for l in modules.modules():
