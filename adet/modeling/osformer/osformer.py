@@ -731,6 +731,9 @@ class CISTransformerHead(nn.Module):
         self.no_fpn = cfg.MODEL.OSFormer.NOFPN
         self.bbox_embed = MLP(self.hidden_dim, self.hidden_dim, 4, 3)
         self.mask_in_features = cfg.MODEL.OSFormer.MASK_IN_FEATURES
+        
+        self.enc_output = nn.Linear(self.hidden_dim, self.hidden_dim)
+        self.enc_output_norm = nn.LayerNorm(self.hidden_dim)
 
         if self.no_fpn:
             in_channels = [256 for _ in input_shape]
@@ -880,13 +883,14 @@ class CISTransformerHead(nn.Module):
             mask = torch.zeros((bs, w, h), dtype=torch.bool, device=memory.device)
             mask_flatten.append(mask.flatten(1))
             valid_masks.append(mask)
-            mask_flatten = torch.cat(mask_flatten, 1)
+        mask_flatten = torch.cat(mask_flatten, 1)
 
 
         old_features.update({f_name.replace('res', 'trans'): feat
                          for f_name, feat in zip(self.instance_in_features, trans_memory)})
         if old_features.get('trans2') is not None:
             old_features['trans2'] = F.interpolate(old_features['trans2'], scale_factor=2)
+        print(old_features.keys())
 
         mask_in_feats = [old_features[f] for f in self.mask_in_features]
         mask_pred = mask_head(mask_in_feats)
@@ -928,7 +932,11 @@ class CISTransformerHead(nn.Module):
         outputs_class, outputs_mask = self.forward_prediction_heads(tgt.transpose(0, 1), mask_pred, self.training)
         predictions_class.append(outputs_class)
         predictions_mask.append(outputs_mask)
-
+        
+        trans_memory = torch.cat(trans_memory, dim=1)
+        print("tgt.shape", tgt.shape)
+        print("trans_memory.shape", trans_memory.shape)
+        asd
 
 
         hss = self.trans_decoder(tgt.transpose(0, 1), pos_queries, valid_masks, trans_memory, pos_encoders)
