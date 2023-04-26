@@ -937,12 +937,12 @@ class CISTransformerHead(nn.Module):
         outputs_class, outputs_mask = self.forward_prediction_heads(tgt.transpose(0, 1), mask_pred, self.training)
         predictions_class.append(outputs_class)
         predictions_mask.append(outputs_mask)
-        for i in trans_memory:
-            print(i.shape)
-        trans_memory = torch.cat(trans_memory, dim=1)
-        print("tgt.shape", tgt.shape)
-        print("trans_memory.shape", trans_memory.shape)
-        asd
+        # for i in trans_memory:
+        #     print(i.shape)
+        # trans_memory = torch.cat(trans_memory, dim=1)
+        # print("tgt.shape", tgt.shape)
+        # print("trans_memory.shape", trans_memory.shape)
+        # asd
 
 
         hss = self.trans_decoder(tgt.transpose(0, 1), pos_queries, valid_masks, trans_memory, pos_encoders)
