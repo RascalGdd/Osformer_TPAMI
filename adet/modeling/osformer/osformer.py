@@ -810,6 +810,26 @@ class CISTransformerHead(nn.Module):
 
         return topk_feats, topk_pos
 
+    def pred_box(self, reference, hs, ref0=None):
+        """
+        :param reference: reference box coordinates from each decoder layer
+        :param hs: content
+        :param ref0: whether there are prediction from the first layer
+        """
+        device = reference[0].device
+
+        if ref0 is None:
+            outputs_coord_list = []
+        else:
+            outputs_coord_list = [ref0.to(device)]
+        for dec_lid, (layer_ref_sig, layer_bbox_embed, layer_hs) in enumerate(zip(reference[:-1], self.bbox_embed, hs)):
+            layer_delta_unsig = layer_bbox_embed(layer_hs).to(device)
+            layer_outputs_unsig = layer_delta_unsig + inverse_sigmoid(layer_ref_sig).to(device)
+            layer_outputs_unsig = layer_outputs_unsig.sigmoid()
+            outputs_coord_list.append(layer_outputs_unsig)
+        outputs_coord_list = torch.stack(outputs_coord_list)
+        return outputs_coord_list
+
     def forward_prediction_heads(self, output, mask_features, pred_mask=True):
         decoder_output = self.decoder_norm(output)
         decoder_output = decoder_output.transpose(0, 1)
@@ -895,7 +915,6 @@ class CISTransformerHead(nn.Module):
                          for f_name, feat in zip(self.instance_in_features, trans_memory)})
         if old_features.get('trans2') is not None:
             old_features['trans2'] = F.interpolate(old_features['trans2'], scale_factor=2)
-        print(old_features.keys())
 
         mask_in_feats = [old_features[f] for f in self.mask_in_features]
         mask_pred = mask_head(mask_in_feats)
@@ -920,8 +939,6 @@ class CISTransformerHead(nn.Module):
                               topk_proposals.unsqueeze(-1).repeat(1, 1, self.hidden_dim))  # unsigmoid
 
         outputs_class, outputs_mask = self.forward_prediction_heads(tgt_undetach.transpose(0, 1), mask_pred)
-        print("tgt_undetach", tgt_undetach.shape)
-        print("mask_pred", mask_pred.shape)
 
         tgt = tgt_undetach.detach()
         interm_outputs=dict()
@@ -938,7 +955,6 @@ class CISTransformerHead(nn.Module):
         refpoint_embed = inverse_sigmoid(refpoint_embed)
 
         outputs_class, outputs_mask = self.forward_prediction_heads(tgt.transpose(0, 1), mask_pred, self.training)
-        print("tgt", tgt.shape)
         predictions_class.append(outputs_class)
         predictions_mask.append(outputs_mask)
         # for i in trans_memory:
@@ -951,20 +967,18 @@ class CISTransformerHead(nn.Module):
 
         hss, ref_points = self.trans_decoder(tgt, pos_queries, valid_masks, trans_memory, pos_encoders, refpoint_embed)
 
-        outputs_class, outputs_mask = self.forward_prediction_heads(hss, mask_pred,
+        outputs_class, outputs_mask = self.forward_prediction_heads(hss.transpose(0, 1), mask_pred,
                                                                     self.training)
-        print("hss", hss.shape)
         predictions_class.append(outputs_class)
         predictions_mask.append(outputs_mask)
         out_boxes = self.pred_box(ref_points, hss, refpoint_embed.sigmoid())
+        print(len(predictions_class))
+        print(len(predictions_mask))
+        print(len(out_boxes))
+        asd
 
 
-        tmp = self.bbox_embed(hss)
-        if reference.shape[-1] == 4:
-            tmp += reference
-        else:
-            assert reference.shape[-1] == 2
-            tmp[..., :2] += reference
+
         outputs_coord = tmp.sigmoid()
 
         cate_pred= self.cate_pred(hss)   # (bs, N, channel)

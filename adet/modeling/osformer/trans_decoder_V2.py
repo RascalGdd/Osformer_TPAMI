@@ -111,7 +111,7 @@ class CISTransformerDecoder(nn.Module):
 
         # decoder
         memory = self.decoder(tgts, memory_flatten, spatial_shapes, spatial_shape_grids, level_start_index_grid,
-                              level_start_index, query_pos, lvl_pos_memory_flatten, point_flatten, valid_ratios)
+                              level_start_index, query_pos.transpose(0, 1), lvl_pos_memory_flatten, point_flatten, valid_ratios)
 
         return memory, [reference_points_sigmoid]
 
