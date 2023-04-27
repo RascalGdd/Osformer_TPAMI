@@ -16,6 +16,7 @@ class CISTransformerDecoder(nn.Module):
 
         self.d_model = d_model
         self.nhead = nhead
+        self.ref_point_head = MLP(4 // 2 * d_model, d_model, d_model, 2)
 
         decoder_layer = TransformerDecoderLayer(d_model, dim_feedforward,
                                                 dropout, ffn_type,
@@ -23,7 +24,6 @@ class CISTransformerDecoder(nn.Module):
         self.decoder = TransformerDecoder(decoder_layer, num_encoder_layers)
         self.level_embed = nn.Parameter(torch.Tensor(num_feature_levels, d_model))
         self.reference_points = nn.Linear(d_model, 4)
-#        self.ref_point_head = MLP(query_dim // 2 * d_model, d_model, d_model, 2)
 
         self._reset_parameters()
 
