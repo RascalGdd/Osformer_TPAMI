@@ -408,8 +408,11 @@ class SparseInstMatcher(nn.Module):
                 # Nx(Number of gts)
                 matching_prob = pred_logits.view(B * N, -1)[:, tgt_ids]
                 C = (mask_score ** self.alpha) * (matching_prob ** self.beta)
+            print("C1", C.shape)
 
             C = C.view(B, N, -1).cpu()
+            print("C2", C.shape)
+            asd
             # hungarian matching
             sizes = [len(v["masks"]) for v in targets]
             indices = [linear_sum_assignment(c[i], maximize=True)

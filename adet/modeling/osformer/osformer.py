@@ -147,7 +147,7 @@ class OSFormer(nn.Module):
         if len(self.instance_strides) > 3:
             ins_features = self.split_feats(ins_features)
 
-        out, mask_extra_feat, mask_pred, sem_pred = self.cate_head(ins_features, features, self.mask_head)
+        score_pred, out, mask_extra_feat, mask_pred, sem_pred = self.cate_head(ins_features, features, self.mask_head)
         # features.update({f_name.replace('res', 'trans'): feat
         #                  for f_name, feat in zip(self.instance_in_features, mask_extra_feat)})
         # if features.get('trans2') is not None:
@@ -166,12 +166,7 @@ class OSFormer(nn.Module):
         #     B, C, H * W)).view(B, N, H, W)
      #   pred_masks = self.dcin(kernel_pred, mask_pred)
         output = out
-        output = {
-            "pred_logits": cate_pred,
-            "pred_masks": pred_masks,
-            "pred_scores": score_pred,
-            'pred_boxes': outputs_coord
-        }
+        output["pred_scores"] = score_pred
 
         if self.training:
             """
@@ -989,6 +984,8 @@ class CISTransformerHead(nn.Module):
 
         out['interm_outputs'] = interm_outputs
 
+        pred_scores = self.score_pred(hss)
+
 
 
         # cate_pred= self.cate_pred(hss)   # (bs, N, channel)
@@ -1007,7 +1004,7 @@ class CISTransformerHead(nn.Module):
         #     kernel_pred_single = self.kernel_pred(hs).permute(0, 3, 1, 2)
         #     kernel_pred.append(kernel_pred_single)
 
-        return out, trans_memory, mask_pred, sem_pred
+        return pred_scores, out, trans_memory, mask_pred, sem_pred
 
 
 class C2FMaskHead(nn.Module):
