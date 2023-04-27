@@ -415,7 +415,8 @@ class SparseInstMatcher(nn.Module):
             # hungarian matching
             sizes = [len(v["masks"]) for v in targets]
             print(sizes)
-            print(C.split(sizes, -1)[0].shape)
+            for i, c in enumerate(C.split(sizes, -1)):
+                print(c[i].shape)
             asd
             indices = [linear_sum_assignment(c[i], maximize=True)
                        for i, c in enumerate(C.split(sizes, -1))]
