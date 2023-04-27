@@ -113,7 +113,14 @@ class CISTransformerDecoder(nn.Module):
         memory = self.decoder(tgts, memory_flatten, spatial_shapes, spatial_shape_grids, level_start_index_grid,
                               level_start_index, query_pos.transpose(0, 1), lvl_pos_memory_flatten, point_flatten, valid_ratios)
 
-        return memory, [reference_points_sigmoid]
+        reference_before_sigmoid = reference_points
+        delta_unsig = self.bbox_embed(memory).to("cuda")
+        outputs_unsig = delta_unsig + reference_before_sigmoid
+        new_reference_points = outputs_unsig.sigmoid()
+
+        # if layer_id != self.num_layers - 1:
+
+        return memory, [new_reference_points]
 
 
 class TransformerDecoderLayer(nn.Module):
