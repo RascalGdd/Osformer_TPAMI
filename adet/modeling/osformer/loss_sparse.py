@@ -412,9 +412,10 @@ class SparseInstMatcher(nn.Module):
 
             C = C.view(B, N, -1).cpu()
             print("C2", C.shape)
-            asd
             # hungarian matching
             sizes = [len(v["masks"]) for v in targets]
+            print(sizes)
+            asd
             indices = [linear_sum_assignment(c[i], maximize=True)
                        for i, c in enumerate(C.split(sizes, -1))]
             indices = [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(
