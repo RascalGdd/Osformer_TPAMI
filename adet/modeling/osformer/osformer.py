@@ -920,6 +920,9 @@ class CISTransformerHead(nn.Module):
                               topk_proposals.unsqueeze(-1).repeat(1, 1, self.hidden_dim))  # unsigmoid
 
         outputs_class, outputs_mask = self.forward_prediction_heads(tgt_undetach.transpose(0, 1), mask_pred)
+        print("tgt_undetach", tgt_undetach.shape)
+        print("mask_pred", mask_pred.shape)
+
         tgt = tgt_undetach.detach()
         interm_outputs=dict()
         interm_outputs['pred_logits'] = outputs_class
@@ -935,6 +938,7 @@ class CISTransformerHead(nn.Module):
         refpoint_embed = inverse_sigmoid(refpoint_embed)
 
         outputs_class, outputs_mask = self.forward_prediction_heads(tgt.transpose(0, 1), mask_pred, self.training)
+        print("tgt", tgt.shape)
         predictions_class.append(outputs_class)
         predictions_mask.append(outputs_mask)
         # for i in trans_memory:
@@ -945,17 +949,16 @@ class CISTransformerHead(nn.Module):
         # asd
 
 
-        hss = self.trans_decoder(tgt, pos_queries, valid_masks, trans_memory, pos_encoders, refpoint_embed)
-        inter_references = init_references
-        # hss = torch.permute(hss, [1, 0, 2])        # now: [N, bs, 2]
+        hss, ref_points = self.trans_decoder(tgt, pos_queries, valid_masks, trans_memory, pos_encoders, refpoint_embed)
 
-        # print("hss_shape", hss.shape)
-        # print("init_reference", init_reference.shape)
-        # asd
+        outputs_class, outputs_mask = self.forward_prediction_heads(hss, mask_pred,
+                                                                    self.training)
+        print("hss", hss.shape)
+        predictions_class.append(outputs_class)
+        predictions_mask.append(outputs_mask)
+        out_boxes = self.pred_box(ref_points, hss, refpoint_embed.sigmoid())
 
 
-
-        reference = inverse_sigmoid(init_references)
         tmp = self.bbox_embed(hss)
         if reference.shape[-1] == 4:
             tmp += reference
