@@ -147,7 +147,7 @@ class OSFormer(nn.Module):
         if len(self.instance_strides) > 3:
             ins_features = self.split_feats(ins_features)
 
-        cate_pred, kernel_pred, score_pred, mask_extra_feat, outputs_coord, mask_pred, sem_pred = self.cate_head(ins_features, features, self.mask_head)
+        out, mask_extra_feat, mask_pred, sem_pred = self.cate_head(ins_features, features, self.mask_head)
         # features.update({f_name.replace('res', 'trans'): feat
         #                  for f_name, feat in zip(self.instance_in_features, mask_extra_feat)})
         # if features.get('trans2') is not None:
@@ -160,12 +160,12 @@ class OSFormer(nn.Module):
         # if self.sem_loss_on:
         #     mask_pred, sem_pred = mask_pred
 
-        N = kernel_pred.shape[1]
-        B, C, H, W = mask_pred.shape
-        pred_masks = torch.bmm(kernel_pred, mask_pred.view(
-            B, C, H * W)).view(B, N, H, W)
+        # N = kernel_pred.shape[1]
+        # B, C, H, W = mask_pred.shape
+        # pred_masks = torch.bmm(kernel_pred, mask_pred.view(
+        #     B, C, H * W)).view(B, N, H, W)
      #   pred_masks = self.dcin(kernel_pred, mask_pred)
-
+        output = out
         output = {
             "pred_logits": cate_pred,
             "pred_masks": pred_masks,
@@ -973,21 +973,29 @@ class CISTransformerHead(nn.Module):
         predictions_class.append(outputs_class)
         predictions_mask.append(outputs_mask)
         out_boxes = ref_points
-        print(len(predictions_class))
-        print(len(predictions_mask))
-        print(len(out_boxes))
-        print(predictions_class[-1].shape)
-        print(predictions_mask[-1].shape)
-        print(out_boxes[-1].shape)
-        asd
+        # print(len(predictions_class))
+        # print(len(predictions_mask))
+        # print(len(out_boxes))
+        # print(predictions_class[-1].shape)
+        # print(predictions_mask[-1].shape)
+        # print(out_boxes[-1].shape)
+        # asd
+
+        out = {
+            'pred_logits': predictions_class[-1],
+            'pred_masks': predictions_mask[-1],
+            'pred_boxes': out_boxes[-1],
+        }
+
+        out['interm_outputs'] = interm_outputs
 
 
 
-        outputs_coord = tmp.sigmoid()
+        # cate_pred= self.cate_pred(hss)   # (bs, N, channel)
+        # kernel_pred = self.kernel_pred(hss)
+        # score_pred = self.score_pred(hss)
 
-        cate_pred= self.cate_pred(hss)   # (bs, N, channel)
-        kernel_pred = self.kernel_pred(hss)
-        score_pred = self.score_pred(hss)
+
 
         # cate_pred = []
         # kernel_pred = []
@@ -999,7 +1007,7 @@ class CISTransformerHead(nn.Module):
         #     kernel_pred_single = self.kernel_pred(hs).permute(0, 3, 1, 2)
         #     kernel_pred.append(kernel_pred_single)
 
-        return cate_pred, kernel_pred, score_pred, trans_memory, outputs_coord, mask_pred, sem_pred
+        return out, trans_memory, mask_pred, sem_pred
 
 
 class C2FMaskHead(nn.Module):
