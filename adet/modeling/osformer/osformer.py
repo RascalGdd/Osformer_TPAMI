@@ -945,7 +945,7 @@ class CISTransformerHead(nn.Module):
         # asd
 
 
-        hss = self.trans_decoder(tgt.transpose(0, 1), pos_queries, valid_masks, trans_memory, pos_encoders, refpoint_embed)
+        hss = self.trans_decoder(tgt, pos_queries, valid_masks, trans_memory, pos_encoders, refpoint_embed)
         inter_references = init_references
         # hss = torch.permute(hss, [1, 0, 2])        # now: [N, bs, 2]
 

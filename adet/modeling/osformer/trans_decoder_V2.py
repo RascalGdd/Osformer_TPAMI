@@ -6,6 +6,7 @@ from adet.modeling.ops.modules.ms_deform_attn import MSDeformAttn
 from .trans_utils import _get_clones, get_reference_points, with_pos_embed
 from .feed_forward import get_ffn
 import torch.nn.functional as F
+import math
 
 class CISTransformerDecoder(nn.Module):
     def __init__(self, d_model=256, nhead=8,
@@ -57,6 +58,7 @@ class CISTransformerDecoder(nn.Module):
         # spatial_shape_grids = []
         # reference_points = []
         point_flatten = reference_points
+        reference_points_sigmoid = reference_points.sigmoid().to("cuda")
 
         for lvl, (memory, pos_memory) in enumerate(zip(memorys, pos_memorys)):
             # B, N, C = tgt.shape
@@ -80,6 +82,17 @@ class CISTransformerDecoder(nn.Module):
             # reference_point = self.reference_points(pos_embed).sigmoid()
             # print("shape of reference_point is", reference_point.shape)
             # reference_points.append(reference_point)
+
+        query_sine_embed = gen_sineembed_for_position(reference_points_sigmoid.transpose(0, 1))  # nq, bs, 256*2
+        raw_query_pos = self.ref_point_head(query_sine_embed)  # nq, bs, 256
+        pos_scale = 1
+        query_pos = pos_scale * raw_query_pos
+        print("query_sine_embed", query_sine_embed.shape)
+        print("raw_query_pos", raw_query_pos.shape)
+        asd
+
+
+
         # point_flatten = torch.cat(reference_points, 1)
         # tgt_flatten = torch.cat(tgt_flatten, 1)
         memory_flatten = torch.cat(memory_flatten, 1)
@@ -178,3 +191,31 @@ class MLP(nn.Module):
         for i, layer in enumerate(self.layers):
             x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
         return x
+
+def gen_sineembed_for_position(pos_tensor):
+    # n_query, bs, _ = pos_tensor.size()
+    # sineembed_tensor = torch.zeros(n_query, bs, 256)
+    scale = 2 * math.pi
+    dim_t = torch.arange(128, dtype=torch.float32, device=pos_tensor.device)
+    dim_t = 10000 ** (2 * (dim_t // 2) / 128)
+    x_embed = pos_tensor[:, :, 0] * scale
+    y_embed = pos_tensor[:, :, 1] * scale
+    pos_x = x_embed[:, :, None] / dim_t
+    pos_y = y_embed[:, :, None] / dim_t
+    pos_x = torch.stack((pos_x[:, :, 0::2].sin(), pos_x[:, :, 1::2].cos()), dim=3).flatten(2)
+    pos_y = torch.stack((pos_y[:, :, 0::2].sin(), pos_y[:, :, 1::2].cos()), dim=3).flatten(2)
+    if pos_tensor.size(-1) == 2:
+        pos = torch.cat((pos_y, pos_x), dim=2)
+    elif pos_tensor.size(-1) == 4:
+        w_embed = pos_tensor[:, :, 2] * scale
+        pos_w = w_embed[:, :, None] / dim_t
+        pos_w = torch.stack((pos_w[:, :, 0::2].sin(), pos_w[:, :, 1::2].cos()), dim=3).flatten(2)
+
+        h_embed = pos_tensor[:, :, 3] * scale
+        pos_h = h_embed[:, :, None] / dim_t
+        pos_h = torch.stack((pos_h[:, :, 0::2].sin(), pos_h[:, :, 1::2].cos()), dim=3).flatten(2)
+
+        pos = torch.cat((pos_y, pos_x, pos_w, pos_h), dim=2)
+    else:
+        raise ValueError("Unknown pos_tensor shape(-1):{}".format(pos_tensor.size(-1)))
+    return pos
