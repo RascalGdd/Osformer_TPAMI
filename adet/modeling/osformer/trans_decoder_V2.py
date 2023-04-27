@@ -87,9 +87,10 @@ class CISTransformerDecoder(nn.Module):
         raw_query_pos = self.ref_point_head(query_sine_embed)  # nq, bs, 256
         pos_scale = 1
         query_pos = pos_scale * raw_query_pos
-        print("query_sine_embed", query_sine_embed.shape)
-        print("raw_query_pos", raw_query_pos.shape)
-        asd
+
+        # print("query_sine_embed", query_sine_embed.shape)
+        # print("raw_query_pos", raw_query_pos.shape)
+        # asd
 
 
 
@@ -98,7 +99,7 @@ class CISTransformerDecoder(nn.Module):
         memory_flatten = torch.cat(memory_flatten, 1)
         # lvl_pos_embed_flatten = torch.cat(lvl_pos_embed_flatten, 1)
         lvl_pos_memory_flatten = torch.cat(lvl_pos_memory_flatten, 1)
-        spatial_shapes = torch.as_tensor(spatial_shapes, dtype=torch.long, device=tgt_flatten.device)
+        spatial_shapes = torch.as_tensor(spatial_shapes, dtype=torch.long, device="cuda")
         level_start_index = torch.cat((spatial_shapes.new_zeros((1,)), spatial_shapes.prod(1).cumsum(0)[:-1]))
         # 维度为N*C时去掉prod操作
         # spatial_shape_grids = torch.as_tensor(spatial_shape_grids, dtype=torch.long, device=tgt_flatten.device)
@@ -109,8 +110,8 @@ class CISTransformerDecoder(nn.Module):
         level_start_index_grid = 0
 
         # decoder
-        memory = self.decoder(tgt_flatten, memory_flatten, spatial_shapes, spatial_shape_grids, level_start_index_grid,
-                              level_start_index, lvl_pos_embed_flatten, lvl_pos_memory_flatten, point_flatten, valid_ratios)
+        memory = self.decoder(tgts, memory_flatten, spatial_shapes, spatial_shape_grids, level_start_index_grid,
+                              level_start_index, query_pos, lvl_pos_memory_flatten, point_flatten, valid_ratios)
 
         return memory
 
