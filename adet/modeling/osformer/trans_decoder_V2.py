@@ -54,13 +54,14 @@ class CISTransformerDecoder(nn.Module):
         lvl_pos_embed_flatten = []
         lvl_pos_memory_flatten = []
         spatial_shapes = []
-        spatial_shape_grids = []
-        reference_points = []
+        # spatial_shape_grids = []
+        # reference_points = []
+        point_flatten = reference_points
 
-        for lvl, (tgt, pos_embed, memory, pos_memory) in enumerate(zip(tgts, pos_embeds, memorys, pos_memorys)):
-            B, N, C = tgt.shape
-            spatial_shape_tgt = N
-            spatial_shape_grids.append(spatial_shape_tgt)
+        for lvl, (memory, pos_memory) in enumerate(zip(memorys, pos_memorys)):
+            # B, N, C = tgt.shape
+            # spatial_shape_tgt = N
+            # spatial_shape_grids.append(spatial_shape_tgt)
             bs, c, h, w = memory.shape
             spatial_shape = (h, w)
             spatial_shapes.append(spatial_shape)
@@ -68,28 +69,31 @@ class CISTransformerDecoder(nn.Module):
             memory = memory.flatten(2).transpose(1, 2)
             # pos_embed = pos_embed.flatten(2).transpose(1, 2)
             pos_memory = pos_memory.flatten(2).transpose(1, 2)
-            lvl_pos_embed = pos_embed + self.level_embed[lvl].view(1, 1, -1)
-            lvl_pos_embed_flatten.append(lvl_pos_embed)
+            # lvl_pos_embed = pos_embed + self.level_embed[lvl].view(1, 1, -1)
+            # lvl_pos_embed_flatten.append(lvl_pos_embed)
             lvl_pos_memory = pos_memory + self.level_embed[lvl].view(1, 1, -1)
             lvl_pos_memory_flatten.append(lvl_pos_memory)
-            tgt_flatten.append(tgt)
+            # tgt_flatten.append(tgt)
             memory_flatten.append(memory)
             # print("shape of pos_embed is", pos_embed.shape)
             # print("shape of tgt is", tgt.shape)
             # reference_point = self.reference_points(pos_embed).sigmoid()
             # print("shape of reference_point is", reference_point.shape)
             # reference_points.append(reference_point)
-        point_flatten = torch.cat(reference_points, 1)
-        tgt_flatten = torch.cat(tgt_flatten, 1)
+        # point_flatten = torch.cat(reference_points, 1)
+        # tgt_flatten = torch.cat(tgt_flatten, 1)
         memory_flatten = torch.cat(memory_flatten, 1)
-        lvl_pos_embed_flatten = torch.cat(lvl_pos_embed_flatten, 1)
+        # lvl_pos_embed_flatten = torch.cat(lvl_pos_embed_flatten, 1)
         lvl_pos_memory_flatten = torch.cat(lvl_pos_memory_flatten, 1)
         spatial_shapes = torch.as_tensor(spatial_shapes, dtype=torch.long, device=tgt_flatten.device)
         level_start_index = torch.cat((spatial_shapes.new_zeros((1,)), spatial_shapes.prod(1).cumsum(0)[:-1]))
         # 维度为N*C时去掉prod操作
-        spatial_shape_grids = torch.as_tensor(spatial_shape_grids, dtype=torch.long, device=tgt_flatten.device)
-        level_start_index_grid = torch.cat((spatial_shape_grids.new_zeros((1, )), spatial_shape_grids.cumsum(0)[:-1]))
+        # spatial_shape_grids = torch.as_tensor(spatial_shape_grids, dtype=torch.long, device=tgt_flatten.device)
+        # level_start_index_grid = torch.cat((spatial_shape_grids.new_zeros((1, )), spatial_shape_grids.cumsum(0)[:-1]))
         valid_ratios = torch.stack([self.get_valid_ratio(m) for m in valid_masks], 1)
+        # we don't use these two grids
+        spatial_shape_grids = 0
+        level_start_index_grid = 0
 
         # decoder
         memory = self.decoder(tgt_flatten, memory_flatten, spatial_shapes, spatial_shape_grids, level_start_index_grid,
