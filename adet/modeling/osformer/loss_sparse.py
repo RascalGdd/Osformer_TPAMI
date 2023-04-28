@@ -392,6 +392,10 @@ class SparseInstMatcher(nn.Module):
         self.mask_score = dice_score
 
     def forward(self, outputs, targets, input_shape):
+
+        for t in targets:
+            t['boxes'] = masks_to_boxes(t["masks"].tensor).cuda()
+
         with torch.no_grad():
             B, N, H, W = outputs["pred_masks"].shape
 
