@@ -167,6 +167,7 @@ class SparseInstCriterion(nn.Module):
 
         for t in targets:
             t['boxes'] = masks_to_boxes(t["masks"].tensor).cuda()
+            print(t['boxes'])
 
         target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
@@ -310,9 +311,19 @@ class SparseInstCriterion(nn.Module):
             losses.update(self.get_loss(loss, outputs, targets, indices,
                                         num_instances, sem_targets, sem_pred, input_shape=input_shape))
 
+        if 'interm_outputs' in outputs:
+            interm_outputs = outputs['interm_outputs']
+            indices = self.matcher(interm_outputs, targets)
+            for loss in self.losses:
+                l_dict = self.get_loss(loss, outputs, targets, indices,
+                                        num_instances, sem_targets, sem_pred, input_shape=input_shape)
+                l_dict = {k + f'_interm': v for k, v in l_dict.items()}
+                losses.update(l_dict)
+
         for k in losses.keys():
             if k in self.weight_dict:
                 losses[k] *= self.weight_dict[k]
+        print(losses)
 
         return losses
 
@@ -383,6 +394,38 @@ class SparseInstMatcher(nn.Module):
     def forward(self, outputs, targets, input_shape):
         with torch.no_grad():
             B, N, H, W = outputs["pred_masks"].shape
+
+            container_dino = []
+
+            for b in range(B):
+                out_bbox = outputs["pred_boxes"][b]
+                tgt_bbox = targets[b]["boxes"]
+                cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
+                cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(out_bbox), box_cxcywh_to_xyxy(tgt_bbox))
+
+
+                out_prob = outputs["pred_logits"][b].sigmoid()  # [num_queries, num_classes]
+                tgt_ids = targets[b]["labels"]
+                # focal loss
+                alpha = 0.25
+                gamma = 2.0
+                neg_cost_class = (1 - alpha) * (out_prob ** gamma) * (-(1 - out_prob + 1e-8).log())
+                pos_cost_class = alpha * ((1 - out_prob) ** gamma) * (-(out_prob + 1e-8).log())
+                cost_class = pos_cost_class[:, tgt_ids] - neg_cost_class[:, tgt_ids]
+
+                # Compute the classification cost. Contrary to the loss, we don't use the NLL,
+                # but approximate it in 1 - proba[target class].
+                # The 1 is a constant that doesn't change the matching, it can be ommitted.
+                # cost_class = -out_prob[:, tgt_ids]
+
+                # Final cost matrix
+                C = (
+                        5.0 * cost_bbox
+                        + 2.0 * cost_giou
+                )
+
+                container_dino.append(C)
+
             pred_masks = outputs['pred_masks']
             pred_logits = outputs['pred_logits'].sigmoid()
 
@@ -408,18 +451,20 @@ class SparseInstMatcher(nn.Module):
                 # Nx(Number of gts)
                 matching_prob = pred_logits.view(B * N, -1)[:, tgt_ids]
                 C = (mask_score ** self.alpha) * (matching_prob ** self.beta)
-            print("C1", C.shape)
-
             C = C.view(B, N, -1).cpu()
-            print("C2", C.shape)
             # hungarian matching
             sizes = [len(v["masks"]) for v in targets]
-            print(sizes)
-            for i, c in enumerate(C.split(sizes, -1)):
-                print(c[i].shape)
-            asd
-            indices = [linear_sum_assignment(c[i], maximize=True)
-                       for i, c in enumerate(C.split(sizes, -1))]
+            # print(sizes)
+            # for i, c in enumerate(C.split(sizes, -1)):
+            #     print(c[i].shape)
+            # asd
+            container = [c[i] + container_dino[i] for i, c in enumerate(C.split(sizes, -1))]
+
+
+            indices = [linear_sum_assignment(container[i], maximize=True)
+                       for i in container]
+            # indices = [linear_sum_assignment(c[i], maximize=True)
+            #            for i, c in enumerate(C.split(sizes, -1))]
             indices = [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(
                 j, dtype=torch.int64)) for i, j in indices]
             return indices
