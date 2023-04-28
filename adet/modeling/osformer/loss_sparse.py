@@ -170,11 +170,11 @@ class SparseInstCriterion(nn.Module):
             print(t["masks"].tensor.shape)
             t['boxes'] = masks_to_boxes(t["masks"].tensor).cuda()
 
-            h, w = t["masks"].tensor.shape[-2:]
-            refpoint_embed = BitMasks(flaten_mask > 0).get_bounding_boxes().tensor.cuda()
-            refpoint_embed = box_xyxy_to_cxcywh(refpoint_embed) / torch.as_tensor([w, h, w, h],
-                                                                                  dtype=torch.float).cuda()
-            print(t['boxes'])
+            # h, w = t["masks"].tensor.shape[-2:]
+            # refpoint_embed = BitMasks(flaten_mask > 0).get_bounding_boxes().tensor.cuda()
+            # refpoint_embed = box_xyxy_to_cxcywh(refpoint_embed) / torch.as_tensor([w, h, w, h],
+            #                                                                       dtype=torch.float).cuda()
+            # print(t['boxes'])
 
         target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
