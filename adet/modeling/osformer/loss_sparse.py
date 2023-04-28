@@ -465,7 +465,7 @@ class SparseInstMatcher(nn.Module):
             container = [c[i] + container_dino[i] for i, c in enumerate(C.split(sizes, -1))]
 
 
-            indices = [linear_sum_assignment(container[i], maximize=True)
+            indices = [linear_sum_assignment(i, maximize=True)
                        for i in container]
             # indices = [linear_sum_assignment(c[i], maximize=True)
             #            for i, c in enumerate(C.split(sizes, -1))]
