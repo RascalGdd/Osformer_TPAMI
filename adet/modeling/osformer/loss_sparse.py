@@ -426,7 +426,7 @@ class SparseInstMatcher(nn.Module):
                 C = (
                         5.0 * cost_bbox
                         + 2.0 * cost_giou
-                )
+                ).cpu()
 
                 container_dino.append(C)
 
