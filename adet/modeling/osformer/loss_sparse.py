@@ -313,7 +313,7 @@ class SparseInstCriterion(nn.Module):
 
         if 'interm_outputs' in outputs:
             interm_outputs = outputs['interm_outputs']
-            indices = self.matcher(interm_outputs, targets)
+            indices = self.matcher(interm_outputs, targets, input_shape)
             for loss in self.losses:
                 l_dict = self.get_loss(loss, outputs, targets, indices,
                                         num_instances, sem_targets, sem_pred, input_shape=input_shape)
