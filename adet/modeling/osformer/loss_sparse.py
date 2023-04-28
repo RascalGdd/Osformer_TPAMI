@@ -10,6 +10,7 @@ from kornia.morphology import erosion
 from detectron2.utils.registry import Registry
 from .box_ops import *
 from .utils import nested_masks_from_list, is_dist_avail_and_initialized, get_world_size
+from detectron2.structures import Boxes, ImageList, Instances, BitMasks
 
 SPARSE_INST_MATCHER_REGISTRY = Registry("SPARSE_INST_MATCHER")
 SPARSE_INST_MATCHER_REGISTRY.__doc__ = "Matcher for SparseInst"
@@ -166,7 +167,13 @@ class SparseInstCriterion(nn.Module):
         src_boxes = outputs['pred_boxes'][idx]
 
         for t in targets:
+            print(t["masks"].tensor.shape)
             t['boxes'] = masks_to_boxes(t["masks"].tensor).cuda()
+
+            h, w = t["masks"].tensor.shape[-2:]
+            refpoint_embed = BitMasks(flaten_mask > 0).get_bounding_boxes().tensor.cuda()
+            refpoint_embed = box_xyxy_to_cxcywh(refpoint_embed) / torch.as_tensor([w, h, w, h],
+                                                                                  dtype=torch.float).cuda()
             print(t['boxes'])
 
         target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
@@ -315,6 +322,8 @@ class SparseInstCriterion(nn.Module):
             interm_outputs = outputs['interm_outputs']
             indices = self.matcher(interm_outputs, targets, input_shape)
             for loss in self.losses:
+                if loss == "loss_sem":
+                    continue
                 l_dict = self.get_loss(loss, outputs, targets, indices,
                                         num_instances, sem_targets, sem_pred, input_shape=input_shape)
                 l_dict = {k + f'_interm': v for k, v in l_dict.items()}
@@ -424,8 +433,8 @@ class SparseInstMatcher(nn.Module):
 
                 # Final cost matrix
                 C = (
-                        cost_bbox ** self.beta
-                        + cost_giou ** self.beta
+                        cost_bbox
+                        + cost_giou
                 ).cpu()
 
                 container_dino.append(C)
