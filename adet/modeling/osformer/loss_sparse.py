@@ -169,10 +169,11 @@ class SparseInstCriterion(nn.Module):
         for t in targets:
             print("start")
             print(t["masks"].tensor.shape)
+            print(t["masks"])
             print(masks_to_boxes(t["masks"].tensor))
 
             h, w = t["masks"].tensor.shape[-2:]
-            boxes = BitMasks(t["masks"] > 0).get_bounding_boxes().tensor.cuda()
+            boxes = t["masks"].get_bounding_boxes().tensor.cuda()
             t['boxes'] = box_xyxy_to_cxcywh(boxes) / torch.as_tensor([w, h, w, h],
                                                                                   dtype=torch.float).cuda()
             print(t['boxes'])
