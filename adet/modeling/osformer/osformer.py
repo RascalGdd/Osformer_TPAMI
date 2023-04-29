@@ -964,7 +964,7 @@ class CISTransformerHead(nn.Module):
         hss, ref_points = self.trans_decoder(tgt, pos_queries, valid_masks, trans_memory, pos_encoders, refpoint_embed)
 
         outputs_class, outputs_mask = self.forward_prediction_heads(hss.transpose(0, 1), mask_pred,
-                                                                    self.training)
+                                                                    True)
         predictions_class.append(outputs_class)
         predictions_mask.append(outputs_mask)
         out_boxes = ref_points
