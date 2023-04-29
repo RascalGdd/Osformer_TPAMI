@@ -155,7 +155,6 @@ class SparseInstCriterion(nn.Module):
         losses = {'loss_ce': class_loss}
         return losses
 
-
     def loss_boxes(self, outputs, targets, indices, num_boxes):
         """Compute the losses related to the bounding boxes, the L1 regression loss and the GIoU loss
            targets dicts must contain the key "boxes" containing a tensor of dim [nb_target_boxes, 4]
@@ -166,7 +165,10 @@ class SparseInstCriterion(nn.Module):
         src_boxes = outputs['pred_boxes'][idx]
 
         for t in targets:
-            t['boxes'] = masks_to_boxes(t["masks"].tensor).cuda()
+            h, w = t["masks"].tensor.shape[-2:]
+            boxes = t["masks"].get_bounding_boxes().tensor.cuda()
+            t['boxes'] = box_xyxy_to_cxcywh(boxes) / torch.as_tensor([w, h, w, h],
+                                                                     dtype=torch.float).cuda()
 
         target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
