@@ -321,16 +321,16 @@ class SparseInstCriterion(nn.Module):
             losses.update(self.get_loss(loss, outputs, targets, indices,
                                         num_instances, sem_targets, sem_pred, input_shape=input_shape))
 
-        if 'interm_outputs' in outputs:
-            interm_outputs = outputs['interm_outputs']
-            indices = self.matcher(interm_outputs, targets, input_shape)
-            for loss in self.losses:
-                if loss == "loss_sem":
-                    continue
-                l_dict = self.get_loss(loss, outputs, targets, indices,
-                                        num_instances, sem_targets, sem_pred, input_shape=input_shape)
-                l_dict = {k + f'_interm': v for k, v in l_dict.items()}
-                losses.update(l_dict)
+        # if 'interm_outputs' in outputs:
+        #     interm_outputs = outputs['interm_outputs']
+        #     indices = self.matcher(interm_outputs, targets, input_shape)
+        #     for loss in self.losses:
+        #         if loss == "loss_sem":
+        #             continue
+        #         l_dict = self.get_loss(loss, outputs, targets, indices,
+        #                                 num_instances, sem_targets, sem_pred, input_shape=input_shape)
+        #         l_dict = {k + f'_interm': v for k, v in l_dict.items()}
+        #         losses.update(l_dict)
 
         for k in losses.keys():
             if k in self.weight_dict:
